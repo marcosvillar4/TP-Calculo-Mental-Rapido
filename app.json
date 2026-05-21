@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Cálculo Mental Rápido",
+    "slug": "tp-calculo-mental-react",
+    "scheme": "tpcalculo-mental",
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
