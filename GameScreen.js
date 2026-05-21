@@ -1,73 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import styles from './App.styles';
+import { useEffect, useRef, useState } from 'react';
 
-function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function generateOperation(difficulty) {
-  let a;
-  let b;
-  let op;
-  let answer;
-
-  const ops = ['+', '-', '*'];
-
-  if (difficulty === 'facil') {
-    a = randInt(1, 10);
-    b = randInt(1, 10);
-  } else if (difficulty === 'medio') {
-    a = randInt(2, 50);
-    b = randInt(1, 20);
-  } else {
-    a = randInt(10, 200);
-    b = randInt(2, 50);
-  }
-
-  op = ops[randInt(0, ops.length - 1)];
-
-  if (op === '+') answer = a + b;
-  if (op === '-') answer = a - b;
-  if (op === '*') answer = a * b;
-
-  return { text: `${a} ${op} ${b}`, answer };
-}
-
-function makeChoices(correct) {
-  const choices = new Set([correct]);
-
-  while (choices.size < 4) {
-    const delta = randInt(1, Math.max(2, Math.round(Math.abs(correct) * 0.3) + 3));
-    const sign = Math.random() < 0.5 ? -1 : 1;
-    choices.add(Math.round(correct + sign * delta));
-  }
-
-  const arr = Array.from(choices);
-
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-
-  return arr;
-}
-
-async function saveScore(record) {
-  try {
-    const raw = await AsyncStorage.getItem('tp_scores');
-    const arr = raw ? JSON.parse(raw) : [];
-    arr.push(record);
-    await AsyncStorage.setItem('tp_scores', JSON.stringify(arr));
-  } catch (error) {
-    console.warn('Error saving score', error);
-  }
-}
-
-function formatTime(seconds) {
-  return `${seconds.toFixed(1)}s`;
-}
+import { FinalResultScreen } from './components/game/FinalResultScreen';
+import { GameContent } from './components/game/GameContent';
+import {
+  calculateAverageResponseTime,
+  calculateScoreDelta,
+  generateOperation,
+  makeChoices,
+  saveScore,
+} from './utils/gameUtils';
 
 export default function GameScreen({ settings, onExit }) {
   const { mode, difficulty, rounds, playerName, timePerQuestion } = settings;
@@ -98,16 +39,6 @@ export default function GameScreen({ settings, onExit }) {
     }
   };
 
-  const getAverageResponseTime = () => {
-    const times = responseTimesRef.current;
-
-    if (!times.length) {
-      return 0;
-    }
-
-    return times.reduce((acc, value) => acc + value, 0) / times.length;
-  };
-
   const prepareQuestionExtras = (nextQuestion) => {
     if (mode === 'multiple') {
       setChoices(makeChoices(nextQuestion.answer));
@@ -117,7 +48,7 @@ export default function GameScreen({ settings, onExit }) {
 
     if (mode === 'vf') {
       const showCorrect = Math.random() < 0.6;
-      const delta = randInt(1, Math.max(2, Math.round(Math.abs(nextQuestion.answer) * 0.2) + 1));
+      const delta = Math.max(1, Math.round(Math.abs(nextQuestion.answer) * 0.2) + 1);
       const shown = showCorrect
         ? nextQuestion.answer
         : nextQuestion.answer + (Math.random() < 0.5 ? -1 : 1) * delta;
@@ -154,18 +85,6 @@ export default function GameScreen({ settings, onExit }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [question, screenState, timePerQuestion, mode]);
 
-  const awardScore = (correct, timeUsed, noAnswer = false) => {
-    if (noAnswer) {
-      return -50;
-    }
-
-    if (correct) {
-      return timeUsed < 0.75 * timePerQuestion ? 100 : 70;
-    }
-
-    return -30;
-  };
-
   const finalizeGame = async (reason) => {
     if (finishLockRef.current) {
       return;
@@ -175,9 +94,10 @@ export default function GameScreen({ settings, onExit }) {
     clearTimer();
 
     const totalQuestions = mode === 'cronometro' ? index + 1 : rounds;
-    const averageResponseTime = getAverageResponseTime();
+    const averageResponseTime = calculateAverageResponseTime(responseTimesRef.current);
     const finalScore = scoreRef.current;
-    const record = {
+
+    await saveScore({
       name: playerName || 'Jugador',
       score: finalScore,
       averageResponseTime,
@@ -186,9 +106,8 @@ export default function GameScreen({ settings, onExit }) {
       rounds: totalQuestions,
       date: new Date().toISOString(),
       reason,
-    };
+    });
 
-    await saveScore(record);
     setFinalResult({
       reason,
       score: finalScore,
@@ -218,7 +137,14 @@ export default function GameScreen({ settings, onExit }) {
     hasResolvedQuestionRef.current = true;
     clearTimer();
     responseTimesRef.current.push(timeUsed);
-    const delta = awardScore(correct, timeUsed, noAnswer);
+
+    const delta = calculateScoreDelta({
+      correct,
+      timeUsed,
+      timePerQuestion,
+      noAnswer,
+    });
+
     scoreRef.current += delta;
     setScore(scoreRef.current);
 
@@ -242,8 +168,7 @@ export default function GameScreen({ settings, onExit }) {
   const handleSubmitClassic = () => {
     const timeUsed = timePerQuestion - timeLeft;
     const numeric = Number(input);
-    const correct = numeric === question.answer;
-    completeAnswer(correct, timeUsed, false);
+    completeAnswer(numeric === question.answer, timeUsed, false);
   };
 
   const handleSubmitVF = (choice) => {
@@ -254,126 +179,39 @@ export default function GameScreen({ settings, onExit }) {
 
   const handleSubmitMultiple = (value) => {
     const timeUsed = timePerQuestion - timeLeft;
-    const correct = Number(value) === question.answer;
-    completeAnswer(correct, timeUsed, false);
+    completeAnswer(Number(value) === question.answer, timeUsed, false);
   };
 
   if (screenState === 'final' && finalResult) {
-    const titleByReason = {
-      completed: '¡Partida finalizada!',
-      lost: 'Perdiste la partida',
-      timeout: 'Se acabó el tiempo',
-    };
-
     return (
-      <View style={styles.gameScreenContainer}>
-        <View style={[styles.card, styles.gameCard]}>
-          <Text style={styles.kicker}>Resultado final</Text>
-          <Text style={styles.title}>{titleByReason[finalResult.reason] ?? 'Partida finalizada'}</Text>
-          <Text style={[styles.subtitle, { marginTop: 10, textAlign: 'center' }]}>
-            {playerName || 'Jugador'} completó la partida en el modo {mode}.
-          </Text>
-
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Resumen</Text>
-            <Text style={styles.summaryText}>Puntuación final: {finalResult.score}</Text>
-            <Text style={styles.summaryText}>
-              Tiempo de respuesta promedio: {formatTime(finalResult.averageResponseTime)}
-            </Text>
-            <Text style={styles.summaryText}>Preguntas jugadas: {finalResult.questionsPlayed}</Text>
-          </View>
-
-          <Pressable accessibilityRole="button" style={styles.primaryButton} onPress={onExit}>
-            <Text style={styles.primaryButtonText}>Volver al menú principal</Text>
-          </Pressable>
-        </View>
-      </View>
+      <FinalResultScreen
+        reason={finalResult.reason}
+        score={finalResult.score}
+        averageResponseTime={finalResult.averageResponseTime}
+        questionsPlayed={finalResult.questionsPlayed}
+        playerName={playerName}
+        mode={mode}
+        onBackToMenu={onExit}
+      />
     );
   }
 
   return (
-    <View style={styles.gameScreenContainer}>
-      <View style={[styles.card, styles.gameCard]}>
-        <Text style={styles.kicker}>En juego · {playerName || 'Jugador'}</Text>
-        <Text style={styles.title}>Puntaje: {score}</Text>
-        <Text style={[styles.subtitle, { marginTop: 6, textAlign: 'center' }]}>
-          Ronda: {index + 1}{mode === 'cronometro' ? '' : ` / ${rounds}`}
-        </Text>
-
-        <View style={styles.gameCenteredBlock}>
-          <Text style={styles.gameQuestionText}>{question.text}</Text>
-          <Text style={styles.gameQuestionSubtext}>
-            Tiempo restante: {timeLeft.toFixed(1)}s
-          </Text>
-        </View>
-
-        {mode === 'clasico' && (
-          <View style={styles.gameInputBlock}>
-            <TextInput
-              keyboardType="numeric"
-              placeholder="Escribí la respuesta"
-              placeholderTextColor="#64748b"
-              value={input}
-              onChangeText={setInput}
-              style={styles.input}
-            />
-            <Pressable onPress={handleSubmitClassic} style={[styles.primaryButton, { marginTop: 12 }]}>
-              <Text style={styles.primaryButtonText}>Enviar</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {mode === 'vf' && (
-          <View style={styles.gameCenteredActions}>
-            <Text style={{ color: '#cbd5e1', fontSize: 20, marginTop: 6, textAlign: 'center' }}>
-              {question.text} = {proposed}
-            </Text>
-            <View style={styles.vfActionRow}>
-              <Pressable onPress={() => handleSubmitVF('true')} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>Verdadero</Text>
-              </Pressable>
-              <Pressable onPress={() => handleSubmitVF('false')} style={[styles.primaryButton, { backgroundColor: '#ef4444' }]}>
-                <Text style={styles.primaryButtonText}>Falso</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {mode === 'multiple' && (
-          <View style={styles.multipleGrid}>
-            {choices.map((choice, indexChoice) => (
-              <Pressable
-                key={`${choice}-${indexChoice}`}
-                onPress={() => handleSubmitMultiple(choice)}
-                style={[styles.option, styles.multipleOption]}
-              >
-                <Text style={styles.multipleOptionLabel}>{String(choice)}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-
-        {mode === 'cronometro' && (
-          <View style={styles.gameInputBlock}>
-            <TextInput
-              keyboardType="numeric"
-              placeholder="Respuesta"
-              placeholderTextColor="#64748b"
-              value={input}
-              onChangeText={setInput}
-              style={styles.input}
-            />
-            <Pressable onPress={handleSubmitClassic} style={[styles.primaryButton, { marginTop: 12 }]}>
-              <Text style={styles.primaryButtonText}>Enviar</Text>
-            </Pressable>
-          </View>
-        )}
-      </View>
-    </View>
+    <GameContent
+      mode={mode}
+      playerName={playerName}
+      score={score}
+      index={index}
+      rounds={rounds}
+      questionText={question.text}
+      timeLeft={timeLeft}
+      input={input}
+      setInput={setInput}
+      proposed={proposed}
+      choices={choices}
+      onSubmitClassic={handleSubmitClassic}
+      onSubmitVF={handleSubmitVF}
+      onSubmitMultiple={handleSubmitMultiple}
+    />
   );
 }
-
-
-
-
-
