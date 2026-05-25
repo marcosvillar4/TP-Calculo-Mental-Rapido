@@ -15,8 +15,12 @@ Proyecto de una app/juego de cálculo mental rápido hecha con React Native y Ex
 
 ## Scripts
 
+
+Los requerimientos estan especificados en package.json, este pequeño script descarga los requerimientos mediante NPM y ejecuta la version web
+
 ```bash
 npm install
 npm run start
 npm run web
 ```
+
