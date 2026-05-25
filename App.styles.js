@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   },
   historyTab: {
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 20,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#24324d',
@@ -269,6 +269,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#22c55e',
     borderRadius: 18,
     paddingVertical: 15,
+    paddingHorizontal: 20,
     alignItems: 'center',
   },
   primaryButtonText: {
@@ -383,6 +384,7 @@ const styles = StyleSheet.create({
   keypadActionButton: {
     flex: 1,
     minHeight: 52,
+    paddingHorizontal: 14,
     borderRadius: 16,
     backgroundColor: '#111c33',
     borderWidth: 1,

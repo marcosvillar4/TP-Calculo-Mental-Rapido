@@ -19,4 +19,3 @@ export default function TimePerQuestionField({ value, onChangeText }) {
     </View>
   );
 }
-

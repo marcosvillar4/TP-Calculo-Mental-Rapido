@@ -29,4 +29,3 @@ export default function ChronoMode({ input, setInput, onSubmitClassic }) {
   );
 }
 
-

@@ -20,4 +20,3 @@ export default function PlayerNameField({ value, onChangeText }) {
     </View>
   );
 }
-

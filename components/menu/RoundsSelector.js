@@ -44,4 +44,3 @@ export default function RoundsSelector({ roundsText, setRoundsText, maxRounds })
     </View>
   );
 }
-

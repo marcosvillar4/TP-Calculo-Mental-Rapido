@@ -19,4 +19,3 @@ export default function TrueFalseMode({ questionText, proposed, onSubmitVF }) {
     </View>
   );
 }
-

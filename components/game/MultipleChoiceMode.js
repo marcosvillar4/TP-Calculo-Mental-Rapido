@@ -17,4 +17,3 @@ export default function MultipleChoiceMode({ choices, onSubmitMultiple }) {
     </View>
   );
 }
-

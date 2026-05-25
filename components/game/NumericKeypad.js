@@ -107,4 +107,3 @@ export default function NumericKeypad({ value, onChangeText, onSubmit, submitLab
   );
 }
 
-

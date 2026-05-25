@@ -22,4 +22,3 @@ export default function ModeSelector({ selectedMode, setSelectedMode }) {
     </View>
   );
 }
-
